@@ -6,3 +6,4 @@
 * matplotlib
 * numpy
 * lmfit
+* scipy.special
