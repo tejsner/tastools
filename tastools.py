@@ -45,7 +45,7 @@ def get_edges(grid):
     """
     return np.arange(grid[0]-grid[2]/2, grid[1]+grid[2], grid[2])
 
-def colorplot_2d(x, y, I, xgrid=None, ygrid=None, x_edges=None, y_edges=None):
+def colorplot_2d(x, y, I, xgrid=None, ygrid=None, x_edges=np.array([]), y_edges=np.array([])):
     """
     Create 2d mesh dataset for a colorplot
     Input:
@@ -56,9 +56,10 @@ def colorplot_2d(x, y, I, xgrid=None, ygrid=None, x_edges=None, y_edges=None):
         ygrid: 1d bin centers [ymin, ymax, dy]
         x_edges: manually specified edges of x-bins. Ignores xgrid and ygrid if set
         y_edges: manually specified edges of y-bins. Ignores xgrid and ygrid if set
+        NOTE: Intensities are calculated as a running average, so somewhat approximated.
     """
     # calculate the edges for our binning unless specified
-    if not (x_edges or y_edges):
+    if not (x_edges.any() or y_edges.any()):
         x_edges = get_edges(xgrid)
         y_edges = get_edges(ygrid)
 
@@ -71,12 +72,25 @@ def colorplot_2d(x, y, I, xgrid=None, ygrid=None, x_edges=None, y_edges=None):
         if np.isnan(R[x_index, y_index]):
             R[x_index, y_index] = I[i]
         else:
-            R[x_index, y_index] += I[i]
+            R[x_index, y_index] = R[x_index, y_index]/2 + I[i]/2
 
     # generate meshes for X and Y
     X, Y = np.meshgrid(x_edges, y_edges)
 
     return X, Y, R
+
+def sine_dispersion(qrange, E0=70, width=15, fmt='k--', xgrid=100):
+    """
+    Simple sine dispersion plot of LO phonon with maximal energy at the zone center.
+    hrange: min and max value of q (rlu)
+    E0: Minimum energy
+    width: width of the dispersion, meaning that Emax = E0 + width
+    xgrid: number of points to evaluate
+    RETURNS: dispersion as q, E points
+    """
+    x = np.linspace(qrange[0], qrange[1], xgrid)
+    y = width/2*np.cos(x*2*np.pi) + E0 + width/2
+    return x, y
 
 def gauss(x, x0, amp, sig):
     norm = 1/sig/np.sqrt(2*np.pi)
@@ -92,30 +106,3 @@ def DHO(x, x0, amp, gam):
 def voigt(x, x0, amp, sig, gam):
     alpha = sig/np.sqrt(2 * np.log(2))
     return amp*np.real(wofz(((x-x0) + 1j*gam)/alpha/np.sqrt(2)))/alpha/np.sqrt(2*np.pi)
-
-x = np.linspace(0, 10, 100)
-
-plt.plot(x, lorz(x, 5, 1, 1.5), label='lorz')
-plt.plot(x, gauss(x, 5, 1, 1.5), label='gauss')
-plt.plot(x, voigt(x, 5, 1, 1.5, 1.5), label='voigt')
-
-plt.legend()
-plt.show()
-
-
-#d = load_ill_data([25859,25860], 'data/0')
-#plt.errorbar(d['EN'], d['I'], d['err'], fmt='o')
-#plt.show()
-
-
-# files = np.arange(25859, 25874+1)
-# d = load_ill_data(files, 'data/0')
-
-# xgrid = (4.5, 5.0, 0.05)
-# ygrid = (61, 95, 1)
-
-# X, Y, C = colorplot_2d(d['QH'], d['EN'], d['I'], xgrid, ygrid) 
-# plt.pcolor(X, Y, C.T, vmin=0.005, vmax=0.025)
-# plt.colorbar()
-# plt.scatter(d['QH'], d['EN'], c='k')
-# plt.show()
