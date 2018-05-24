@@ -37,6 +37,35 @@ def load_ill_data(filenumbers, prefix, monitor='M1'):
     d = append_fields(d, ['I', 'err'], [I, err])
     return d
 
+def combine_data(data, axis, binsize, operation='+'):
+    """
+    Combine two or more sets of data
+    data: list of data objects
+    axis: axis to combine along
+    binsize: size of bins in units of the axis
+    """
+    d = np.concatenate(data)
+
+    xmin = min(d[axis])
+    xmax = max(d[axis])
+    bins = np.arange(xmin-binsize/2, xmax+binsize, binsize)
+    inds = np.digitize(d[axis], bins)
+    
+    x = np.array([])
+    CNTS = np.array([])
+    MON = np.array([])
+
+    if operation == '+':        
+        for i in np.unique(inds):
+            x = np.append(x, d[axis][inds == i].mean())
+            CNTS = np.append(CNTS, d['CNTS'][inds == i].sum())
+            MON = np.append(MON, d['M1'][inds == i].sum())
+
+        I = CNTS/MON
+        err = np.sqrt(CNTS)/MON
+
+    return x, I, err
+
 def get_edges(grid):
     """
     Get the bin edges of regular 1d bins
