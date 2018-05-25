@@ -55,7 +55,7 @@ def combine_data(data, axis, binsize, operation='+'):
     CNTS = np.array([])
     MON = np.array([])
 
-    if operation == '+':        
+    if operation == '+':
         for i in np.unique(inds):
             x = np.append(x, d[axis][inds == i].mean())
             CNTS = np.append(CNTS, d['CNTS'][inds == i].sum())
@@ -64,7 +64,13 @@ def combine_data(data, axis, binsize, operation='+'):
         I = CNTS/MON
         err = np.sqrt(CNTS)/MON
 
-    return x, I, err
+    # put into a structured array to resemble the other objects
+    data = np.zeros(len(x), dtype={'names':(axis, 'I', 'err'),'formats':('f8','f8','f8')})
+    data[axis] = x
+    data['I'] = I
+    data['err'] = err
+
+    return data
 
 def get_edges(grid):
     """
