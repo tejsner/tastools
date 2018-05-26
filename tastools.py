@@ -44,6 +44,7 @@ def combine_data(data, axis, binsize, operation='+'):
     axis: axis to combine along
     binsize: size of bins in units of the axis
     """
+    print(data)
     d = np.concatenate(data)
 
     xmin = min(d[axis])
@@ -63,12 +64,13 @@ def combine_data(data, axis, binsize, operation='+'):
 
         I = CNTS/MON
         err = np.sqrt(CNTS)/MON
-
     # put into a structured array to resemble the other objects
-    data = np.zeros(len(x), dtype={'names':(axis, 'I', 'err'),'formats':('f8','f8','f8')})
+    data = np.zeros(len(x), dtype={'names':(axis, 'I', 'err', 'CNTS', 'M1'),'formats':('f8','f8','f8', 'f8', 'f8')})
     data[axis] = x
     data['I'] = I
     data['err'] = err
+    data['CNTS'] = CNTS
+    data['M1'] = MON
 
     return data
 
@@ -126,6 +128,9 @@ def sine_dispersion(qrange, E0=70, width=15, fmt='k--', xgrid=100):
     x = np.linspace(qrange[0], qrange[1], xgrid)
     y = width/2*np.cos(x*2*np.pi) + E0 + width/2
     return x, y
+
+def fit(data, axis, function, parameters):
+    pass
 
 def gauss(x, x0, amp, sig):
     norm = 1/sig/np.sqrt(2*np.pi)
