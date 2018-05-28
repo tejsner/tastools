@@ -4,16 +4,15 @@ import pylab as plt
 
 class tasdata:
     def __init__(self, filenumbers=None, prefix='', suffix='', axes=[]):
-        self.measurements = ['signal', 'monitor']
+        self.monitors = ['signal', 'monitor'] # we allways have at least one signal and monitor
         self.axes = []
-        self.signal = None
-        self.monitor = None
+        self.binned = False
         
         # if given axes, asign the first one as our x-axis
         if axes:
-            self.xaxis = axes[0]
+            self.xlabel = axes[0]
         else:
-            self.xaxis = False
+            self.xlabel = False
 
         # if given filenumbers, load data right away
         if filenumbers is not None:
@@ -26,7 +25,7 @@ class tasdata:
             self.update()
 
     def __str__(self):
-        s = 'monitors: ' + str(self.measurements) + '\n'
+        s = 'monitors: ' + str(self.monitors) + '\n'
         s += 'axes: ' + str(self.axes)
         return s
         
@@ -42,35 +41,37 @@ class tasdata:
         """ update intensity and error """
         self.I = self.signal/self.monitor
         self.err = np.sqrt(self.signal)/self.monitor
-        if self.xaxis:
-            self.x = getattr(self, self.xaxis)
+        if self.xlabel:
+            self.x = getattr(self, self.xlabel)
 
     def load_ill(self, filenames):
         """ loads data from ILL TAS """
-        self.measurements.append('M2')
-        self.measurements.append('TIME')
+        # we allways have the following additional monitors when doing ILL TAS experiments
+        self.monitors.append('M2')
+        self.monitors.append('TIME')
                 
         if isinstance(filenames, str):
             filenames = [filenames]
 
-        for meas in self.measurements:
-            setattr(self, meas, np.array([]))
+        for mon in self.monitors:
+            setattr(self, mon, np.array([]))
 
         for ax in self.axes:
             setattr(self, ax, np.array([]))
         
         for f in filenames:        
-            d = load_ill_ascii(f)
+            d = load_ill_ascii(f)            
             self.signal = np.concatenate((self.signal, d['CNTS']))
             self.monitor = np.concatenate((self.monitor, d['M1']))
-            self.M2 = np.concatenate((self.M2, d['M2']))
-            self.TIME = np.concatenate((self.TIME, d['TIME']))
+            
+            for mon in self.monitors[2:]:
+                setattr(self, mon, np.concatenate((getattr(self, mon), d[mon])))
 
             # if we have not defined an x-axis, take the scan axis from the first file
             if not self.axes:
                 self.axes.append(d.dtype.names[1])
                 setattr(self, self.axes[0], np.array([]))
-                self.xaxis = self.axes[0]
+                self.xlabel = self.axes[0]
             
             for ax in self.axes:
                 setattr(self, ax, np.concatenate((getattr(self, ax), d[ax])))
@@ -83,23 +84,53 @@ class tasdata:
 
         self.update()
 
-    def bin(self, bins, axis=None, method='avg'):
-        """ Bins the data along a certain axis 
-            Either specify a binsize (float) or a vector (array or list) with the actual bins 
-            methods: 'avg' takes the average of x-values in each bin.
-                     'center' uses the bin center as x-value
+    def hist(self, bins='auto'):
+        """ bin the data using the numpy histogram function
+            bins are either an integer definining the number of bins or a list of edges
+            if bins == 'auto', use self.get_bin_edges()
+            bin along axis self.xlabel
+            all monitors in self.monitors are binned in the same way """
+        
+        x = getattr(self, self.xlabel)
 
-            TODO: bin center, save binned x-axis in a seperate variabe
+        if isinstance(bins, str):
+            if bins == 'auto':
+                self.calc_bin_edges()
+                bins = self.bin_edges
+
+        for mon in self.monitors:
+            s, b = np.histogram(x, weights=getattr(self, mon), bins=bins)
+            setattr(self, mon, s)
+
+        self.bin_edges = b
+        self.bin_centers = np.diff(self.bin_edges)/2 + self.bin_edges[:-1]
+        self.binned = True
+        
+        setattr(self, self.xlabel, self.bin_centers)
+
+        self.update()
+
+    def calc_bin_edges(self):
+        """ finds the bin edges assuming discrete measurements """
+        diff = np.diff(self.x)
+        self.bin_edges = self.x[:-1] + diff/2
+        self.bin_edges = np.insert(self.bin_edges, 0, self.x[0] - diff[0]/2)
+        self.bin_edges = np.append(self.bin_edges, self.x[-1] + diff[-1]/2)
+
+        self.bin_edges = np.sort(self.bin_edges)
+
+    def bin(self, bins, axis=None):
+        """ Bins the data along a certain axis with a specified binsize.
+            Usefull for combining similar datasets
+            x-values becomes averages rather than bin centers
         """
         # use the scan-axis if not specified
         if axis is None:
-            axis = self.xaxis
+            axis = self.xlabel
 
-        if isinstance(bins, float):
-            xmin = min(getattr(self, axis))
-            xmax = max(getattr(self, axis))
-            bins = np.arange(xmin-bins/2, xmax+bins, bins)
-        
+        xmin = min(getattr(self, axis))
+        xmax = max(getattr(self, axis))
+        bins = np.arange(xmin-bins/2, xmax+bins, bins)       
         inds = np.digitize(getattr(self, axis), bins)
 
         # make lists of temporary axes (x) and measurements (y) with each element being initialized as an array
@@ -108,7 +139,7 @@ class tasdata:
         for ax in self.axes:
             x.append(np.array([]))
 
-        for meas in self.measurements:
+        for meas in self.monitors:
             y.append(np.array([]))
         
         # fill up the temporary axes and measurments
@@ -118,40 +149,56 @@ class tasdata:
                 x[j] = np.append(x[j], getattr(self, ax)[inds == i].mean())
 
             # for measurements we add up the values
-            for k, meas in enumerate(self.measurements):
+            for k, meas in enumerate(self.monitors):
                 y[k] = np.append(y[k], getattr(self, meas)[inds == i].sum())
 
         # update axes and mreasurements
         for i, ax in enumerate(self.axes):
             setattr(self, ax, x[i])
 
-        for j, meas in enumerate(self.measurements):
+        for j, meas in enumerate(self.monitors):
             setattr(self, meas, y[j])
-
+       
         self.update()
 
     def plot(self):
         plt.errorbar(self.x, self.I, self.err, fmt='o')
 
+    def plot_bins(self):
+        for b in self.bin_edges:
+            plt.axvline(x=b, color='k')            
+
     def __sub__(self, other):
-        """ subtraction given that the two objects have intersecting bins """
-        pass
+        """ subtraction given that one object is binned 
+            returns an object with x, I, err rather than counts and monitor
+            err is added in quadrature """
+        d = tasdata()
+        if self.binned:
+            d.x = self.x            
+            other.hist(self.bin_edges)            
+            d.I = self.I - other.I
+            d.err = np.sqrt(self.err**2 + other.err**2)
+        elif other.binned:
+            d.x = other.x            
+            self.hist(other.bin_edges)            
+            d.I = self.I - other.I
+            d.err = np.sqrt(self.err**2 + other.err**2)
+
+        return d
 
     def __add__(self, other):
-        """ addition given that the two objects have intersecting bins """
-        pass
+        """ addition given that one object is binned """
+        d = tasdata()
+        if self.binned:
+            d.x = self.x            
+            other.hist(self.bin_edges)            
+            d.signal = other.signal + self.signal
+            d.monitor = other.monitor + self.monitor
+        elif other.binned:
+            d.x = other.x            
+            self.hist(other.bin_edges)            
+            d.signal = other.signal + self.signal
+            d.monitor = other.monitor + self.monitor
 
-# example
-d_40K = tasdata([18543,18578], prefix='data/rawdata/0')
-d_80K = tasdata([18548], prefix='data/rawdata/0')
-d_10K = tasdata([18536], prefix='data/rawdata/0')
-d_40K.bin(0.007, 'QH')
-d_80K.bin(0.007, 'QH')
-d_10K.bin(0.007, 'QH')
-
-# d_10K.plot()
-# d_40K.plot()
-# d_80K.plot()
-plt.plot(d_10K.x, d_10K.I-d_40K.I+0.005, 'o')
-plt.plot(d_10K.x, len(d_10K.x)*[0.005], '-')
-plt.show()
+        d.update()
+        return d
