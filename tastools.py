@@ -4,6 +4,7 @@ import numpy as np
 import pylab as plt
 from numpy.lib.recfunctions import append_fields
 from scipy.special import wofz
+from matplotlib import patches
 
 def load_ill_ascii(filename):
     """ 
@@ -65,7 +66,7 @@ def combine_data(data, axis, binsize, operation='+'):
         I = CNTS/MON
         err = np.sqrt(CNTS)/MON
     # put into a structured array to resemble the other objects
-    data = np.zeros(len(x), dtype={'names':(axis, 'I', 'err', 'CNTS', 'M1'),'formats':('f8','f8','f8', 'f8', 'f8')})
+    data = np.zeros(len(x), dtype={'names':(axis, 'I', 'err', 'CNTS', 'M1'),'formats':('f8','f8','f8','f8','f8')})
     data[axis] = x
     data['I'] = I
     data['err'] = err
@@ -128,6 +129,18 @@ def sine_dispersion(qrange, E0=70, width=15, fmt='k--', xgrid=100):
     x = np.linspace(qrange[0], qrange[1], xgrid)
     y = width/2*np.cos(x*2*np.pi) + E0 + width/2
     return x, y
+
+def draw_ellipsoid(qp, en, angle, center, color):
+    """ draws an ellipsoid on the current figure
+        can use parameters directly from a Takin calculation
+        qp: Bragg FWHM Q_para
+        en: Incoherent FWHM
+        angle: angle as given by hovering over the Takin figure
+        center: whereever you want to place it
+        color: color of the elipse edge """
+    ax = plt.gca()
+    el = patches.Ellipse(xy=center, width=en, height=qp, angle=angle, edgecolor=color, fc='None')
+    ax.add_patch(el)
 
 def fit(data, axis, function, parameters):
     pass
