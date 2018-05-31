@@ -157,5 +157,5 @@ def DHO(x, x0, amp, gam):
     return lorz(x, x0, amp, gam)/gam
 
 def voigt(x, x0, amp, sig, gam):
-    alpha = sig/np.sqrt(2 * np.log(2))
-    return amp*np.real(wofz(((x-x0) + 1j*gam)/alpha/np.sqrt(2)))/alpha/np.sqrt(2*np.pi)
+    z = ((x-x0) + 1j*gam)/sig/np.sqrt(2)
+    return amp*np.real(wofz(z))/sig/np.sqrt(2*np.pi)
