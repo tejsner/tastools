@@ -6,23 +6,45 @@ def read_flatcone(filename):
     with open(filename) as f:
         raw = f.readlines()
 
-    # get indices for start of data/multi
+    # initialize dictionary to return
+    r = {}
+    r['INFO'] = {}
+
+    # get indices for start of data/multi/parameters
     for i, line in enumerate(raw):
         if 'DATA_:' in line:
             data_start = i
-        elif 'MULTI:' in line:
+        
+        if 'MULTI:' in line:
             multi_start = i
+        
+        if line.startswith('VVVVV'):
+            params_start = i
 
-    # get parameters needed
-    params = ['AS', 'BS', 'CS', 'AA', 'BB', 'CC', 'AX', 'AY', 'AZ', 'CHAN', 'KFIX', 'DM', 'DA', 'SM', 'SA', 'SS', 'FX']
-    param_dict = {}
-    for line in raw[:data_start]:
-        ls = line.replace(',','').split()
-        for param in params:
-            p = param + '='
-            if p in ls:
-                index = ls.index(p) + 1
-                param_dict[param] = float(ls[index])
+    # save all the parameters
+    for line in raw[params_start+1:data_start]:
+        # dictionary key is the 5 letter prefix in the header
+        prefix = line[:5]
+
+        # if the string contains '=', record the various parameters
+        # otherwise save it as a string in r['info'][prefix]
+        if '=' in line[7:]:            
+            if prefix not in r:
+                r[prefix] = {}
+            
+            # remove whitespace and newline, split by ','
+            param_list = line[7:].replace(' ', '').replace('\n','').split(',')
+            for param in param_list:
+                # get key, value pairs by splitting on '='
+                key, value = param.split('=')
+                
+                # convert to float if possible and save
+                try:
+                    r[prefix][key] = float(value)
+                except:
+                    r[prefix][key] = value
+        else:
+            r['INFO'][prefix] = line[7:].replace('\n', '')
             
     # extract data and headers
     header = raw[data_start+1].split()
@@ -34,28 +56,26 @@ def read_flatcone(filename):
     for d in data_str:
         data.append([float(x) for x in d])
 
-    # conver to numpy array
+    # convert to numpy array
     data = np.array(data)
 
-    # extract flatcone data
-    multi_str = raw[multi_start+1:]
-    multi_str = [x.split() for x in multi_str]
-
-    # convert each line of multi to floats
-    multi = []
-    for m in multi_str:
-        multi.append([float(x) for x in m])
-
-    # convert to numpy array
-    multi = np.array(multi)
-
-    # save as dictionary
-    data_dict = {}
-    data_dict['multi'] = multi
-    data_dict['params'] = param_dict
-
+    # save each column
+    r['DATA_'] = {}
     for i, h in enumerate(header):
-        data_dict[h] = data[:,i]
+        r['DATA_'][h] = data[:,i]
 
-    return data_dict
+    if r['INFO']['TYPE_'] == 'flatcone':
+        # extract flatcone data
+        multi_str = raw[multi_start+1:]
+        multi_str = [x.split() for x in multi_str]
 
+        # convert each line of multi to floats
+        multi = []
+        for m in multi_str:
+            multi.append([float(x) for x in m])
+
+        # convert to numpy array and save
+        r['MULTI'] = np.array(multi)
+
+    return r
+    
