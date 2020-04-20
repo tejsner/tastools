@@ -9,6 +9,7 @@ def read_flatcone(filename):
     # initialize dictionary to return
     r = {}
     r['INFO'] = {}
+    multi_start = None # parsing still works for non-flatcone files
 
     # get indices for start of data/multi/parameters
     for i, line in enumerate(raw):
@@ -78,4 +79,3 @@ def read_flatcone(filename):
         r['MULTI'] = np.array(multi)
 
     return r
-    
